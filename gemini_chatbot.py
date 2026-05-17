@@ -1,11 +1,13 @@
 import streamlit as st
 import google.generativeai as genai
+import google.api_core.exceptions
 from dotenv import load_dotenv
 import os
 
 # Load API key
-load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+load_dotenv(override=True)
+api_key = os.getenv("GOOGLE_API_KEY")
+genai.configure(api_key=api_key)
 
 # Setup Gemini model
 model = genai.GenerativeModel("gemini-2.5-flash-lite")
@@ -36,7 +38,7 @@ if prompt := st.chat_input("Type your message here..."):
         "content": prompt
     })
 
-    # Build history for Gemini
+    # Build history BEFORE try block
     history = []
     for msg in st.session_state.messages[:-1]:
         role = "user" if msg["role"] == "user" else "model"
@@ -45,22 +47,21 @@ if prompt := st.chat_input("Type your message here..."):
             "parts": [msg["content"]]
         })
 
-    # Start chat with history
-    chat = model.start_chat(history=history)
+    # Get Gemini response with timeout
+    try:
+        with st.spinner("Thinking..."):
+            chat = model.start_chat(history=history)
+            response = chat.send_message(
+                prompt,
+                request_options={"timeout": 120}
+            )
+            ai_response = response.text
 
-   # Get Gemini response with timeout handling
-import google.api_core.exceptions
-try:
-    chat = model.start_chat(history=history)
-    response = chat.send_message(
-        prompt,
-        request_options={"timeout": 60}
-    )
-    ai_response = response.text
-except google.api_core.exceptions.DeadlineExceeded:
-    ai_response = "Request timed out. Please try again!"
-except Exception as e:
-    ai_response = f"Error: {str(e)}"
+    except google.api_core.exceptions.DeadlineExceeded:
+        ai_response = "Request timed out. Please try again!"
+
+    except Exception as e:
+        ai_response = f"Error: {str(e)}"
 
     # Show AI response
     with st.chat_message("assistant"):
