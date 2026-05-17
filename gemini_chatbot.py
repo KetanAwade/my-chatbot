@@ -48,9 +48,19 @@ if prompt := st.chat_input("Type your message here..."):
     # Start chat with history
     chat = model.start_chat(history=history)
 
-    # Get Gemini response
-    response = chat.send_message(prompt)
+   # Get Gemini response with timeout handling
+import google.api_core.exceptions
+try:
+    chat = model.start_chat(history=history)
+    response = chat.send_message(
+        prompt,
+        request_options={"timeout": 60}
+    )
     ai_response = response.text
+except google.api_core.exceptions.DeadlineExceeded:
+    ai_response = "Request timed out. Please try again!"
+except Exception as e:
+    ai_response = f"Error: {str(e)}"
 
     # Show AI response
     with st.chat_message("assistant"):
